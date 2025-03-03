@@ -48,7 +48,15 @@ const calculateAnalytics = (history: QuizAttempt[]): QuizAnalytics => {
 export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { user } = useAuth();
+  // Get auth context safely with try/catch to prevent errors in storyboards
+  let user = null;
+  try {
+    const auth = useAuth();
+    user = auth.user;
+  } catch (error) {
+    console.log("Auth context not available, using null user");
+  }
+
   const [quizHistory, setQuizHistory] = useState<QuizAttempt[]>([]);
   const [analytics, setAnalytics] = useState<QuizAnalytics>({
     totalQuizzes: 0,

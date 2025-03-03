@@ -37,20 +37,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
+    try {
+      // Sign up the user with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error("Supabase auth error:", error);
+        throw error;
+      }
+
+      // Check if user was created successfully
+      if (!data.user || !data.user.id) {
+        throw new Error("Failed to create user account");
+      }
+
+      // Success message
+      return data;
+    } catch (error) {
+      console.error("Error during signup:", error);
+      if (error instanceof Error) {
+        throw error;
+      } else {
+        throw new Error("An error occurred during sign up");
+      }
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-    navigate("/");
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        if (error.message.includes("credentials")) {
+          throw new Error(
+            "Invalid credentials. Please check your email and password.",
+          );
+        }
+        throw error;
+      }
+      navigate("/");
+    } catch (error) {
+      console.error("Error during sign in:", error);
+      if (error instanceof Error) {
+        throw error;
+      } else {
+        throw new Error("An error occurred during sign in");
+      }
+    }
   };
 
   const signOut = async () => {
