@@ -1,14 +1,23 @@
 import { Button } from "./button";
 import { motion } from "framer-motion";
-import { FileText, Upload, History, Download } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AnimatedButton } from "./animated-button";
+import { GradientButton } from "./gradient-button";
+import { PurpleButton } from "./purple-button";
 
 export function HeroSection() {
+  const navigate = useNavigate();
+
   return (
     <div className="relative overflow-hidden pt-32 pb-24">
       {/* Background decorative elements */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 transform">
-          <div className="h-[600px] w-[1000px] bg-gradient-to-br from-indigo-500/30 to-purple-500/30 blur-3xl opacity-20 rounded-full" />
+          <div className="h-[600px] w-[1000px] bg-gradient-to-br from-purple-500/30 to-indigo-500/30 blur-3xl opacity-30 rounded-full" />
+        </div>
+        <div className="absolute bottom-0 right-0">
+          <div className="h-[400px] w-[400px] bg-gradient-to-tl from-blue-500/20 to-purple-500/20 blur-3xl opacity-20 rounded-full" />
         </div>
       </div>
 
@@ -22,36 +31,23 @@ export function HeroSection() {
           >
             <h1 className="text-5xl lg:text-6xl font-bold tracking-tight text-gray-900">
               Transform Content into
-              <span className="block text-indigo-600 mt-2">
+              <span className="block bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mt-2">
                 Interactive Quizzes
               </span>
             </h1>
 
             <p className="text-xl text-gray-600 max-w-2xl mx-auto lg:mx-0">
               Upload documents or paste text to create engaging quizzes
-              instantly. Support for PDF, Word, PowerPoint, and more.
+              instantly. Test your knowledge with AI-generated questions.
             </p>
 
             <div className="flex flex-wrap gap-4 justify-center lg:justify-start">
-              <Button size="lg" className="px-8 text-lg">
-                <Upload className="mr-2 h-5 w-5" />
-                Upload Document
-              </Button>
-              <Button size="lg" variant="outline" className="px-8 text-lg">
-                <History className="mr-2 h-5 w-5" />
-                View History
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap gap-6 justify-center lg:justify-start text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                <span>PDF, DOC, PPT</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Download className="h-5 w-5" />
-                <span>Export Results</span>
-              </div>
+              <PurpleButton
+                className="px-10 py-4 text-lg"
+                onClick={() => navigate("/quiz-generator")}
+              >
+                Get Started
+              </PurpleButton>
             </div>
           </motion.div>
 
@@ -61,31 +57,32 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="relative"
           >
-            <div className="bg-white p-8 rounded-2xl shadow-xl">
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center space-y-4">
-                <div className="mx-auto w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center">
-                  <Upload className="h-8 w-8 text-indigo-600" />
+            <div
+              className="backdrop-blur-md bg-white/80 p-8 rounded-2xl shadow-xl border border-white/30"
+              style={{ boxShadow: "0 8px 32px rgba(138, 63, 252, 0.4)" }}
+            >
+              <div className="relative overflow-hidden rounded-xl p-8 text-center space-y-4">
+                <div className="absolute inset-0 border-2 border-dashed animate-border-rotate opacity-50 rounded-xl"></div>
+                <div className="relative z-10">
+                  <div className="mx-auto w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center">
+                    <ArrowRight className="h-8 w-8 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      Create interactive quizzes
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Generate questions from any text content
+                    </p>
+                  </div>
+                  <GradientButton
+                    variant="secondary"
+                    className="mt-4"
+                    onClick={() => navigate("/quiz-generator")}
+                  >
+                    Try It Now
+                  </GradientButton>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold">
-                    Upload your document
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Drag and drop or click to select
-                  </p>
-                </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.ppt,.pptx,.txt"
-                  id="file-upload"
-                />
-                <Button variant="outline" className="mt-4">
-                  Choose File
-                </Button>
-                <p className="text-xs text-gray-400">
-                  or paste your text below
-                </p>
               </div>
             </div>
           </motion.div>

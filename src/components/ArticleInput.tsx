@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Loader2, Upload, FileText } from "lucide-react";
 import { useDropzone } from "react-dropzone";
+import { FileUpload } from "./ui/file-upload";
 import {
   Select,
   SelectContent,
@@ -73,10 +74,13 @@ const ArticleInput = ({
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto p-8 bg-white shadow-lg border-0 rounded-xl transition-all hover:shadow-xl">
+    <Card
+      className="w-full max-w-2xl mx-auto p-8 bg-white/90 backdrop-blur-md shadow-lg border border-white/30 rounded-xl transition-all hover:shadow-xl"
+      style={{ boxShadow: "0 8px 32px rgba(138, 63, 252, 0.2)" }}
+    >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
             Article to Quiz Generator
           </h2>
           <p className="text-gray-500">
@@ -84,53 +88,22 @@ const ArticleInput = ({
           </p>
         </div>
 
-        <div
-          {...getRootProps()}
-          className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-            isDragActive
-              ? "border-indigo-500 bg-indigo-50"
-              : error
-                ? "border-red-300 bg-red-50"
-                : "border-gray-200 hover:border-gray-300"
-          }`}
-        >
+        <div {...getRootProps()}>
           <input {...getInputProps()} />
-          <div className="space-y-4">
-            <div className="mx-auto w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center">
-              <Upload className="h-6 w-6 text-indigo-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">
-                {isDragActive
-                  ? "Drop your file here"
-                  : "Drag & drop your file here, or click to select"}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                Supported format: TXT (max 1MB)
-              </p>
-            </div>
-          </div>
+          <FileUpload
+            onDrop={onDrop}
+            isDragActive={isDragActive}
+            fileName={fileName}
+            error={error}
+          />
         </div>
-
-        {error && (
-          <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-            {error}
-          </div>
-        )}
-
-        {fileName && (
-          <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-            <FileText className="h-4 w-4" />
-            <span>{fileName}</span>
-          </div>
-        )}
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-200" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">
+            <span className="px-4 py-1 bg-white text-gray-500 rounded-full border border-gray-100 shadow-sm">
               Or paste your text
             </span>
           </div>
@@ -138,7 +111,7 @@ const ArticleInput = ({
 
         <Textarea
           placeholder="Paste your article text here..."
-          className="min-h-[200px] p-4"
+          className="min-h-[200px] p-4 border-gray-200 focus:border-purple-300 focus:ring-purple-300 transition-all"
           value={articleText}
           onChange={(e) => {
             setArticleText(e.target.value);
@@ -164,7 +137,7 @@ const ArticleInput = ({
 
           <Button
             type="submit"
-            className="flex-[2]"
+            className="flex-[2] bg-purple-600 hover:bg-purple-700 text-white"
             disabled={isLoading || !articleText.trim()}
           >
             {isLoading ? (

@@ -1,18 +1,11 @@
-import {
-  Brain,
-  FileText,
-  History,
-  Download,
-  Upload,
-  Trophy,
-} from "lucide-react";
+import { Brain, FileText, History, Download, Zap, Trophy } from "lucide-react";
 import { motion } from "framer-motion";
 
 const features = [
   {
-    name: "Multiple File Formats",
+    name: "Easy Text Input",
     description:
-      "Upload PDF, Word, PowerPoint, or paste text directly to generate quizzes",
+      "Upload text files or paste content directly to generate quizzes",
     icon: FileText,
     color: "bg-blue-500",
   },
@@ -31,23 +24,23 @@ const features = [
     color: "bg-purple-500",
   },
   {
-    name: "Export Options",
+    name: "Interactive Feedback",
     description:
-      "Download quizzes and results in multiple formats for offline use",
-    icon: Download,
+      "Get immediate feedback with visual cues and celebratory animations",
+    icon: Zap,
     color: "bg-pink-500",
-  },
-  {
-    name: "Bulk Processing",
-    description: "Upload multiple documents to create comprehensive quiz sets",
-    icon: Upload,
-    color: "bg-green-500",
   },
   {
     name: "Performance Analytics",
     description: "Track your progress with detailed performance insights",
     icon: Trophy,
     color: "bg-yellow-500",
+  },
+  {
+    name: "Export Results",
+    description: "Download your quiz results for offline reference",
+    icon: Download,
+    color: "bg-green-500",
   },
 ];
 
@@ -63,8 +56,8 @@ export function FeatureSection() {
             Everything you need for interactive learning
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            Upload documents, generate quizzes, track progress, and share your
-            learning journey.
+            Generate quizzes, track progress, and enhance your learning
+            experience
           </p>
         </div>
 

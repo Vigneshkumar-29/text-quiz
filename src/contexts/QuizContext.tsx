@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { QuizAttempt, QuizAnalytics } from "@/types/quiz";
+import { useAuth } from "./AuthContext";
+import { supabase } from "@/lib/supabase";
 
 interface QuizContextType {
   quizHistory: QuizAttempt[];
@@ -46,26 +48,145 @@ const calculateAnalytics = (history: QuizAttempt[]): QuizAnalytics => {
 export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [quizHistory, setQuizHistory] = useState<QuizAttempt[]>(() => {
-    const saved = localStorage.getItem("quizHistory");
-    return saved ? JSON.parse(saved) : [];
+  const { user } = useAuth();
+  const [quizHistory, setQuizHistory] = useState<QuizAttempt[]>([]);
+  const [analytics, setAnalytics] = useState<QuizAnalytics>({
+    totalQuizzes: 0,
+    averageScore: 0,
+    totalTimeSpent: 0,
+    bestScore: 0,
+    worstScore: 0,
+    averageTimePerQuiz: 0,
   });
 
-  const [analytics, setAnalytics] = useState<QuizAnalytics>(
-    calculateAnalytics(quizHistory),
-  );
-
+  // Fetch quiz history from Supabase when user changes
   useEffect(() => {
-    localStorage.setItem("quizHistory", JSON.stringify(quizHistory));
-    setAnalytics(calculateAnalytics(quizHistory));
-  }, [quizHistory]);
+    const fetchQuizHistory = async () => {
+      if (user) {
+        // Fetch authenticated user's quiz history from Supabase
+        const { data, error } = await supabase
+          .from("quiz_attempts")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
 
-  const addQuizAttempt = (attempt: QuizAttempt) => {
-    setQuizHistory((prev) => [attempt, ...prev]);
+        if (error) {
+          console.error("Error fetching quiz history:", error);
+          return;
+        }
+
+        if (data) {
+          // Transform from database format to app format
+          const formattedData: QuizAttempt[] = data.map((item) => ({
+            id: item.id,
+            userId: item.user_id,
+            date: item.created_at,
+            score: item.score,
+            timeSpent: item.time_spent,
+            totalQuestions: item.total_questions,
+            correctAnswers: item.correct_answers,
+            articleTitle: item.article_title,
+            questions: item.questions,
+          }));
+
+          setQuizHistory(formattedData);
+          setAnalytics(calculateAnalytics(formattedData));
+        }
+      } else {
+        // For anonymous users, use localStorage
+        const saved = localStorage.getItem("quizHistory");
+        const localHistory = saved ? JSON.parse(saved) : [];
+        const anonymousHistory = localHistory.filter(
+          (attempt: QuizAttempt) => attempt.userId === "anonymous",
+        );
+        setQuizHistory(anonymousHistory);
+        setAnalytics(calculateAnalytics(anonymousHistory));
+      }
+    };
+
+    fetchQuizHistory();
+  }, [user]);
+
+  const addQuizAttempt = async (attempt: QuizAttempt) => {
+    // Ensure the attempt has the current user's ID
+    const attemptWithUserId = {
+      ...attempt,
+      userId: user?.id || "anonymous",
+    };
+
+    if (user) {
+      // Save to Supabase for authenticated users
+      const { error } = await supabase.from("quiz_attempts").insert({
+        id: attemptWithUserId.id,
+        user_id: user.id,
+        created_at: attemptWithUserId.date,
+        score: attemptWithUserId.score,
+        time_spent: attemptWithUserId.timeSpent,
+        total_questions: attemptWithUserId.totalQuestions,
+        correct_answers: attemptWithUserId.correctAnswers,
+        article_title: attemptWithUserId.articleTitle,
+        questions: attemptWithUserId.questions,
+      });
+
+      if (error) {
+        console.error("Error saving quiz attempt:", error);
+      } else {
+        // Update local state
+        setQuizHistory((prev) => [attemptWithUserId, ...prev]);
+      }
+    } else {
+      // For anonymous users, save to localStorage
+      const saved = localStorage.getItem("quizHistory");
+      const localHistory = saved ? JSON.parse(saved) : [];
+      const updatedHistory = [attemptWithUserId, ...localHistory];
+      localStorage.setItem("quizHistory", JSON.stringify(updatedHistory));
+
+      // Update local state with only anonymous attempts
+      const anonymousHistory = updatedHistory.filter(
+        (a: QuizAttempt) => a.userId === "anonymous",
+      );
+      setQuizHistory(anonymousHistory);
+    }
+
+    // Update analytics
+    setAnalytics(calculateAnalytics([...quizHistory, attemptWithUserId]));
   };
 
-  const clearHistory = () => {
-    setQuizHistory([]);
+  const clearHistory = async () => {
+    if (user) {
+      // Delete from Supabase for authenticated users
+      const { error } = await supabase
+        .from("quiz_attempts")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Error clearing quiz history:", error);
+      } else {
+        setQuizHistory([]);
+      }
+    } else {
+      // For anonymous users, clear from localStorage
+      const saved = localStorage.getItem("quizHistory");
+      if (saved) {
+        const localHistory = JSON.parse(saved);
+        const filteredHistory = localHistory.filter(
+          (attempt: QuizAttempt) => attempt.userId !== "anonymous",
+        );
+        localStorage.setItem("quizHistory", JSON.stringify(filteredHistory));
+        setQuizHistory([]);
+      }
+    }
+
+    // Reset analytics
+    setAnalytics({
+      totalQuizzes: 0,
+      averageScore: 0,
+      totalTimeSpent: 0,
+      bestScore: 0,
+      worstScore: 0,
+      averageTimePerQuiz: 0,
+    });
   };
 
   return (

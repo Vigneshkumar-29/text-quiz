@@ -29,31 +29,27 @@ export function Header() {
           </div>
 
           <nav className="hidden md:flex items-center space-x-8">
-            <a
-              href="#features"
-              className="text-sm font-medium text-gray-700 hover:text-indigo-600"
+            <Link
+              to="/about"
+              className="text-sm font-medium text-gray-700 hover:text-purple-600"
             >
-              Features
-            </a>
-            <a
-              href="#how-it-works"
-              className="text-sm font-medium text-gray-700 hover:text-indigo-600"
-            >
-              How it Works
-            </a>
-            <a
-              href="#pricing"
-              className="text-sm font-medium text-gray-700 hover:text-indigo-600"
+              About
+            </Link>
+            <Link
+              to="/pricing"
+              className="text-sm font-medium text-gray-700 hover:text-purple-600"
             >
               Pricing
-            </a>
+            </Link>
+            <Link
+              to="/contact"
+              className="text-sm font-medium text-gray-700 hover:text-purple-600"
+            >
+              Contact
+            </Link>
           </nav>
 
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm">
-              <History className="mr-2 h-4 w-4" />
-              History
-            </Button>
             <Button variant="destructive" size="sm" onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               Logout
