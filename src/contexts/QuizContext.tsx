@@ -127,21 +127,25 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({
       const { error } = await supabase.from("quiz_attempts").insert({
         id: attemptWithUserId.id,
         user_id: user.id,
-        created_at: attemptWithUserId.date,
+        created_at: new Date().toISOString(),
         score: attemptWithUserId.score,
         time_spent: attemptWithUserId.timeSpent,
         total_questions: attemptWithUserId.totalQuestions,
         correct_answers: attemptWithUserId.correctAnswers,
-        article_title: attemptWithUserId.articleTitle,
-        questions: attemptWithUserId.questions,
+        article_title: attemptWithUserId.articleTitle || "Untitled Article",
+        questions: attemptWithUserId.questions || null,
       });
 
       if (error) {
         console.error("Error saving quiz attempt:", error);
-      } else {
-        // Update local state
-        setQuizHistory((prev) => [attemptWithUserId, ...prev]);
+        // Fallback to local storage if Supabase insert fails
+        const saved = localStorage.getItem("quizHistory");
+        const localHistory = saved ? JSON.parse(saved) : [];
+        const updatedHistory = [attemptWithUserId, ...localHistory];
+        localStorage.setItem("quizHistory", JSON.stringify(updatedHistory));
       }
+      // Always update local state
+      setQuizHistory((prev) => [attemptWithUserId, ...prev]);
     } else {
       // For anonymous users, save to localStorage
       const saved = localStorage.getItem("quizHistory");

@@ -1,6 +1,6 @@
 import React from "react";
-import ArticleInput from "@/components/ArticleInput";
-import QuizInterface from "@/components/QuizInterface";
+import ArticleInput from "@/components/quiz/ArticleInput";
+import QuizInterface from "@/components/quiz/QuizInterface";
 import { useState } from "react";
 import { generateQuizQuestions } from "@/lib/openai";
 import { Container } from "@/components/ui/container";
@@ -39,9 +39,12 @@ const QuizGenerator = () => {
           alert(
             "OpenRouter API rate limit exceeded. Please try again later or check your API quota.",
           );
-        } else if (error.message.includes("API key")) {
+        } else if (
+          error.message.includes("API key") ||
+          error.message.includes("Authentication failed")
+        ) {
           alert(
-            "OpenRouter API key is not configured correctly. Please check your .env file.",
+            "OpenRouter API key is not configured correctly or is invalid. Please check your API key in the project settings.",
           );
         } else {
           alert(error.message || "Failed to generate quiz. Please try again.");

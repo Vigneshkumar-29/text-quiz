@@ -1,92 +1,33 @@
--- Create profiles table if it doesn't exist
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Enable OAuth providers in Supabase Auth
+ALTER TABLE auth.identities
+ADD COLUMN IF NOT EXISTS provider_id TEXT,
+ADD COLUMN IF NOT EXISTS provider_user_id TEXT;
 
--- Create quiz_attempts table if it doesn't exist
-CREATE TABLE IF NOT EXISTS public.quiz_attempts (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  score INTEGER NOT NULL,
-  time_spent INTEGER NOT NULL,
-  total_questions INTEGER NOT NULL,
-  correct_answers INTEGER NOT NULL,
-  article_title TEXT,
-  questions JSONB
-);
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS identities_provider_id_provider_user_id_idx
+ON auth.identities(provider_id, provider_user_id);
 
--- Enable Row Level Security
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.quiz_attempts ENABLE ROW LEVEL SECURITY;
+-- Update RLS policies to allow access via OAuth
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- Create policies for profiles
-DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
-CREATE POLICY "Users can view their own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
+CREATE POLICY IF NOT EXISTS "Users can view their own data" 
+ON public.users 
+FOR SELECT 
+USING (auth.uid() = id);
 
-DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
-CREATE POLICY "Users can update their own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id);
+CREATE POLICY IF NOT EXISTS "Users can update their own data" 
+ON public.users 
+FOR UPDATE 
+USING (auth.uid() = id);
 
--- Create policies for quiz_attempts
-DROP POLICY IF EXISTS "Users can view their own quiz attempts" ON public.quiz_attempts;
-CREATE POLICY "Users can view their own quiz attempts"
-  ON public.quiz_attempts FOR SELECT
-  USING (auth.uid()::text = user_id);
+-- Add OAuth provider columns to track provider info
+ALTER TABLE public.users
+ADD COLUMN IF NOT EXISTS oauth_provider TEXT,
+ADD COLUMN IF NOT EXISTS oauth_id TEXT;
 
-DROP POLICY IF EXISTS "Users can insert their own quiz attempts" ON public.quiz_attempts;
-CREATE POLICY "Users can insert their own quiz attempts"
-  ON public.quiz_attempts FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id);
+-- Create unique constraint on oauth provider and id
+CREATE UNIQUE INDEX IF NOT EXISTS users_oauth_provider_oauth_id_idx
+ON public.users(oauth_provider, oauth_id);
 
-DROP POLICY IF EXISTS "Users can update their own quiz attempts" ON public.quiz_attempts;
-CREATE POLICY "Users can update their own quiz attempts"
-  ON public.quiz_attempts FOR UPDATE
-  USING (auth.uid()::text = user_id);
-
-DROP POLICY IF EXISTS "Users can delete their own quiz attempts" ON public.quiz_attempts;
-CREATE POLICY "Users can delete their own quiz attempts"
-  ON public.quiz_attempts FOR DELETE
-  USING (auth.uid()::text = user_id);
-
--- Enable realtime for both tables
-ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.quiz_attempts;
-
--- Create trigger to update updated_at on profiles
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
-CREATE TRIGGER update_profiles_updated_at
-BEFORE UPDATE ON public.profiles
-FOR EACH ROW
-EXECUTE FUNCTION public.handle_updated_at();
-
--- Create function to handle new user signups
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'email');
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create trigger for new user signups
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-AFTER INSERT ON auth.users
-FOR EACH ROW
-EXECUTE FUNCTION public.handle_new_user();
+-- Enable realtime for users table
+ALTER PUBLICATION supabase_realtime ADD TABLE public.users;

@@ -1,8 +1,7 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import confetti from "canvas-confetti";
 import { Check, X } from "lucide-react";
 
 interface Option {
@@ -27,17 +26,19 @@ const QuestionCard = ({
   isAnswered = false,
   selectedAnswerId = "",
 }: QuestionCardProps) => {
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  useEffect(() => {
+    if (isAnswered && selectedAnswerId === correctAnswerId) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isAnswered, selectedAnswerId, correctAnswerId]);
+
   const handleAnswerClick = (answerId: string) => {
     if (isAnswered) return;
     onAnswerSelected(answerId);
-
-    if (answerId === correctAnswerId) {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-    }
   };
 
   const getOptionClassName = (optionId: string) => {

@@ -1,17 +1,17 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { Card } from "./ui/card";
-import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
-import { Loader2, Upload, FileText, FileType } from "lucide-react";
+import { Card } from "../ui/card";
+import { Button } from "../ui/button";
+import { Textarea } from "../ui/textarea";
+import { Loader2, Upload, FileText } from "lucide-react";
 import { useDropzone } from "react-dropzone";
-import { FileUpload } from "./ui/file-upload";
+import { FileUpload } from "../ui/file-upload";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "./ui/select";
+} from "../ui/select";
 import * as pdfjsLib from "pdfjs-dist";
 
 interface ArticleInputProps {

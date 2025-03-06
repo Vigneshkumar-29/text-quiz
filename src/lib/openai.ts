@@ -3,10 +3,15 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const callOpenRouter = async (
   messages: Array<{ role: string; content: string }>,
 ) => {
+  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("OpenRouter API key is not configured");
+  }
+
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": window.location.origin,
       "X-Title": "Article Quiz Generator",
       "Content-Type": "application/json",
@@ -19,6 +24,11 @@ const callOpenRouter = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      throw new Error(
+        "Authentication failed: Invalid API key. Please check your OpenRouter API key.",
+      );
+    }
     throw new Error(
       error.message || `API call failed with status: ${response.status}`,
     );

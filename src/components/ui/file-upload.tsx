@@ -37,7 +37,7 @@ export function FileUpload({
                 : "Drag & drop your file here, or click to select"}
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              Supported format: TXT (max 1MB)
+              Supported formats: TXT and PDF (max 5MB)
             </p>
           </div>
         </div>
