@@ -9,7 +9,6 @@ import { Card } from "@/components/ui/card";
 import { ArrowLeft, Send, Mail, Phone, MapPin, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-
 const ContactPage = () => {
   const navigate = useNavigate();
   const [formState, setFormState] = useState({

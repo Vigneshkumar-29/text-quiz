@@ -1,9 +1,13 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useQuiz } from "@/contexts/QuizContext";
-import { Download, Trash2, FileDown, Printer } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase, quizOperations } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { Book, Download, Trash2, FileDown, Printer } from "lucide-react";
+import { useToast } from "./ui/use-toast";
+import { useQuiz } from "@/contexts/QuizContext";
+import { jsPDF } from "jspdf";
 import {
   Table,
   TableBody,
@@ -12,16 +16,163 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface QuizHistoryItem {
+  id: string;
+  article_title: string;
+  score: number;
+  total_questions: number;
+  correct_answers: number;
+  time_spent: number;
+  created_at: string;
+  questions: Array<{
+    id: string;
+    text: string;
+    options: Array<{
+      id: string;
+      text: string;
+    }>;
+    correctAnswerId: string;
+    userAnswer?: string;
+    isCorrect?: boolean;
+  }>;
+}
 
 const QuizHistory = () => {
-  const { quizHistory, clearHistory, analytics } = useQuiz();
+  const [quizHistoryItems, setQuizHistoryItems] = useState<QuizHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  // Filter history to only show current user's history
-  const userHistory = quizHistory.filter(
-    (attempt) =>
-      attempt.userId === user?.id || (!attempt.userId && user === null),
-  );
+  useEffect(() => {
+    if (user) {
+      loadQuizHistory();
+    }
+  }, [user]);
+
+  const loadQuizHistory = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('quiz_attempts')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setQuizHistoryItems(data || []);
+    } catch (error) {
+      console.error('Error loading quiz history:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load quiz history",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteQuizAttempt = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('quiz_attempts')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      setQuizHistoryItems(prev => prev.filter(item => item.id !== id));
+      toast({
+        title: "Success",
+        description: "Quiz deleted successfully"
+      });
+    } catch (error) {
+      console.error('Error deleting quiz:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete quiz",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const downloadQuizReport = async (quiz: QuizHistoryItem) => {
+    try {
+      if (!user) return;
+
+      const { data: quizData, error } = await quizOperations.getQuizDetails(quiz.id, user.id);
+
+      if (error) throw error;
+
+      const doc = new jsPDF();
+      const lineHeight = 10;
+      let yPos = 20;
+
+      doc.setFontSize(16);
+      doc.text('Quiz Report', 20, yPos);
+      yPos += lineHeight * 1.5;
+
+      doc.setFontSize(14);
+      const title = quiz.article_title || 'Untitled Quiz';
+      const truncatedTitle = title.length > 50 ? title.substring(0, 47) + '...' : title;
+      doc.text(truncatedTitle, 20, yPos);
+      yPos += lineHeight * 1.5;
+
+      doc.setFontSize(12);
+      const dateStr = new Date(quiz.created_at).toLocaleDateString();
+      doc.text(`Date: ${dateStr}`, 20, yPos);
+      yPos += lineHeight;
+      doc.text(`Score: ${quiz.score}%`, 20, yPos);
+      yPos += lineHeight;
+      doc.text(`Questions: ${quiz.total_questions}`, 20, yPos);
+      yPos += lineHeight * 2;
+
+      if (quizData.questions) {
+        doc.setFontSize(14);
+        doc.text('Questions & Answers', 20, yPos);
+        yPos += lineHeight * 1.5;
+
+        quizData.questions.forEach((question: any, index: number) => {
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 20;
+          }
+
+          doc.setFontSize(12);
+          doc.text(`${index + 1}. ${question.text}`, 20, yPos);
+          yPos += lineHeight;
+
+          question.options.forEach((option: any, optIndex: number) => {
+            const prefix = option.id === question.correctAnswerId ? '✓' : ' ';
+            doc.text(`${prefix} ${String.fromCharCode(65 + optIndex)}. ${option.text}`, 30, yPos);
+            yPos += lineHeight;
+          });
+
+          yPos += lineHeight;
+        });
+      }
+
+      const fileName = `quiz-${dateStr.replace(/\//g, '-')}.pdf`;
+      doc.save(fileName);
+
+      toast({
+        title: "Success",
+        description: "Quiz report downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Error downloading quiz:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download quiz report",
+        variant: "destructive",
+      });
+    }
+  };
 
   const exportHistory = () => {
     const csvContent = [
@@ -33,13 +184,13 @@ const QuizHistory = () => {
         "Correct Answers",
         "Article Title",
       ],
-      ...userHistory.map((attempt) => [
-        new Date(attempt.date).toLocaleDateString(),
+      ...quizHistoryItems.map((attempt) => [
+        new Date(attempt.created_at).toLocaleDateString(),
         `${attempt.score}%`,
-        `${Math.floor(attempt.timeSpent / 60)}m ${attempt.timeSpent % 60}s`,
-        attempt.totalQuestions,
-        attempt.correctAnswers,
-        attempt.articleTitle || "Untitled Article",
+        `${Math.floor(attempt.time_spent / 60)}m ${attempt.time_spent % 60}s`,
+        attempt.total_questions,
+        attempt.correct_answers,
+        attempt.article_title || "Untitled Article",
       ]),
     ]
       .map((row) => row.join(","))
@@ -53,7 +204,7 @@ const QuizHistory = () => {
   };
 
   const exportQuizQuestions = (attemptId: string) => {
-    const attempt = userHistory.find((a) => a.id === attemptId);
+    const attempt = quizHistoryItems.find((a) => a.id === attemptId);
     if (!attempt || !attempt.questions) return;
 
     const questionsContent = attempt.questions
@@ -74,12 +225,12 @@ const QuizHistory = () => {
     });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `quiz_questions_${new Date(attempt.date).toLocaleDateString().replace(/\//g, "-")}.txt`;
+    link.download = `quiz_questions_${new Date(attempt.created_at).toLocaleDateString().replace(/\//g, "-")}.txt`;
     link.click();
   };
 
   const exportQuizAsPDF = (attemptId: string) => {
-    const attempt = userHistory.find((a) => a.id === attemptId);
+    const attempt = quizHistoryItems.find((a) => a.id === attemptId);
     if (!attempt || !attempt.questions) return;
 
     // Create a printable version of the quiz
@@ -89,8 +240,8 @@ const QuizHistory = () => {
       return;
     }
 
-    const title = attempt.articleTitle || "Quiz";
-    const date = new Date(attempt.date).toLocaleDateString();
+    const title = attempt.article_title || "Quiz";
+    const date = new Date(attempt.created_at).toLocaleDateString();
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -120,7 +271,7 @@ const QuizHistory = () => {
         </div>
         
         <h1>${title}</h1>
-        <div class="meta">Generated on ${date} | ${attempt.totalQuestions} questions</div>
+        <div class="meta">Generated on ${date} | ${attempt.total_questions} questions</div>
         
         <div class="questions">
     `);
@@ -179,6 +330,40 @@ const QuizHistory = () => {
     printWindow.document.close();
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <Card key={i}>
+            <div className="p-4">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2 mt-2" />
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="text-center py-8">
+        <h2 className="text-xl font-semibold text-gray-700">Please sign in to view your quiz history</h2>
+      </div>
+    );
+  }
+
+  if (quizHistoryItems.length === 0) {
+    return (
+      <Card>
+        <div className="p-4 text-center text-gray-500">
+          <Book className="mx-auto h-12 w-12 mb-2 opacity-50" />
+          <p>No quiz attempts yet</p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card className="p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -188,7 +373,7 @@ const QuizHistory = () => {
             variant="outline"
             size="sm"
             onClick={exportHistory}
-            disabled={userHistory.length === 0}
+            disabled={quizHistoryItems.length === 0}
           >
             <Download className="w-4 h-4 mr-2" />
             Export History
@@ -196,8 +381,8 @@ const QuizHistory = () => {
           <Button
             variant="destructive"
             size="sm"
-            onClick={clearHistory}
-            disabled={userHistory.length === 0}
+            onClick={() => {}}
+            disabled={quizHistoryItems.length === 0}
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Clear History
@@ -209,10 +394,10 @@ const QuizHistory = () => {
         <div className="p-4 bg-white rounded-lg shadow border">
           <h3 className="text-sm font-medium text-gray-500">Average Score</h3>
           <p className="text-2xl font-bold">
-            {userHistory.length > 0
+            {quizHistoryItems.length > 0
               ? (
-                  userHistory.reduce((sum, attempt) => sum + attempt.score, 0) /
-                  userHistory.length
+                  quizHistoryItems.reduce((sum, attempt) => sum + attempt.score, 0) /
+                  quizHistoryItems.length
                 ).toFixed(1)
               : "0"}
             %
@@ -220,13 +405,13 @@ const QuizHistory = () => {
         </div>
         <div className="p-4 bg-white rounded-lg shadow border">
           <h3 className="text-sm font-medium text-gray-500">Total Quizzes</h3>
-          <p className="text-2xl font-bold">{userHistory.length}</p>
+          <p className="text-2xl font-bold">{quizHistoryItems.length}</p>
         </div>
         <div className="p-4 bg-white rounded-lg shadow border">
           <h3 className="text-sm font-medium text-gray-500">Best Score</h3>
           <p className="text-2xl font-bold">
-            {userHistory.length > 0
-              ? Math.max(...userHistory.map((a) => a.score))
+            {quizHistoryItems.length > 0
+              ? Math.max(...quizHistoryItems.map((a) => a.score))
               : "0"}
             %
           </p>
@@ -245,20 +430,20 @@ const QuizHistory = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {userHistory.map((attempt) => (
+          {quizHistoryItems.map((attempt) => (
             <TableRow key={attempt.id}>
               <TableCell>
-                {new Date(attempt.date).toLocaleDateString()}
+                {new Date(attempt.created_at).toLocaleDateString()}
               </TableCell>
               <TableCell className="max-w-[200px] truncate">
-                {attempt.articleTitle || "Untitled Article"}
+                {attempt.article_title || "Untitled Article"}
               </TableCell>
               <TableCell>{attempt.score}%</TableCell>
               <TableCell>
-                {Math.floor(attempt.timeSpent / 60)}m {attempt.timeSpent % 60}s
+                {Math.floor(attempt.time_spent / 60)}m {attempt.time_spent % 60}s
               </TableCell>
               <TableCell>
-                {attempt.correctAnswers}/{attempt.totalQuestions}
+                {attempt.correct_answers}/{attempt.total_questions}
               </TableCell>
               <TableCell>
                 <div className="flex space-x-1">
@@ -274,11 +459,10 @@ const QuizHistory = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => exportQuizAsPDF(attempt.id)}
-                    disabled={!attempt.questions}
-                    title="Download as printable PDF"
+                    onClick={() => deleteQuizAttempt(attempt.id)}
+                    title="Delete quiz"
                   >
-                    <Download className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </TableCell>
@@ -286,13 +470,6 @@ const QuizHistory = () => {
           ))}
         </TableBody>
       </Table>
-
-      {userHistory.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          No quiz history available yet. Complete a quiz to see your results
-          here.
-        </div>
-      )}
     </Card>
   );
 };

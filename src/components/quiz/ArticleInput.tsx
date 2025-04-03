@@ -1,212 +1,207 @@
-import React, { useState, useCallback, useEffect } from "react";
-import { Card } from "../ui/card";
-import { Button } from "../ui/button";
-import { Textarea } from "../ui/textarea";
-import { Loader2, Upload, FileText } from "lucide-react";
-import { useDropzone } from "react-dropzone";
-import { FileUpload } from "../ui/file-upload";
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Loader2, Upload, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/select";
-import * as pdfjsLib from "pdfjs-dist";
+} from "@/components/ui/select";
+import * as pdfjs from 'pdfjs-dist';
+
+// Set up PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 interface ArticleInputProps {
-  onSubmit?: (text: string, numQuestions: number) => void;
-  isLoading?: boolean;
+  onSubmit: (text: string, questionCount: number) => void;
+  isLoading: boolean;
 }
 
-const ArticleInput = ({
-  onSubmit = () => {},
-  isLoading = false,
-}: ArticleInputProps) => {
+const ArticleInput: React.FC<ArticleInputProps> = ({ onSubmit, isLoading }) => {
   const [articleText, setArticleText] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [numQuestions, setNumQuestions] = useState("5");
-  const [error, setError] = useState("");
-  const [processingFile, setProcessingFile] = useState(false);
-
-  // Set up PDF.js worker
-  useEffect(() => {
-    const workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
-    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-  }, []);
-
-  // Function to extract text from PDF
-  const extractTextFromPDF = async (file: File): Promise<string> => {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument(arrayBuffer);
-      const pdf = await loadingTask.promise;
-      let fullText = "";
-
-      // Extract text from each page
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(" ");
-        fullText += pageText + "\n\n";
-      }
-
-      return fullText;
-    } catch (error) {
-      console.error("Error extracting text from PDF:", error);
-      throw new Error("Failed to extract text from PDF");
-    }
-  };
-
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    try {
-      const file = acceptedFiles[0];
-      if (!file) return;
-
-      setFileName(file.name);
-      setError("");
-
-      // Handle text files
-      if (file.type === "text/plain") {
-        const text = await file.text();
-        setArticleText(text);
-        return;
-      }
-
-      // Handle PDF files
-      if (file.type === "application/pdf") {
-        setProcessingFile(true);
-        try {
-          const text = await extractTextFromPDF(file);
-          setArticleText(text);
-          setProcessingFile(false);
-          return;
-        } catch (pdfError) {
-          setError(
-            pdfError instanceof Error
-              ? pdfError.message
-              : "Error processing PDF",
-          );
-          setFileName("");
-          setArticleText("");
-          setProcessingFile(false);
-          return;
-        }
-      }
-
-      // Unsupported file type
-      setError("Currently only .txt and .pdf files are supported");
-      setFileName("");
-      setArticleText("");
-    } catch (err) {
-      console.error("Error reading file:", err);
-      setError(err instanceof Error ? err.message : "Error reading file");
-      setFileName("");
-      setArticleText("");
-    }
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "text/plain": [".txt"],
-      "application/pdf": [".pdf"],
-    },
-    multiple: false,
-    maxSize: 5 * 1024 * 1024, // 5MB max file size
-  });
+  const [questionCount, setQuestionCount] = useState("5");
+  const [isDragging, setIsDragging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (articleText.trim()) {
-      setError("");
-      onSubmit(articleText, parseInt(numQuestions));
-    } else {
-      setError("Please enter some text or upload a file");
+      onSubmit(articleText, parseInt(questionCount));
+    }
+  };
+
+  const processFile = async (file: File) => {
+    setIsProcessingFile(true);
+    setError(null);
+    try {
+      let text = '';
+      
+      if (file.type === 'application/pdf') {
+        // Handle PDF files
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        const textContent = [];
+        
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items
+            .map((item: any) => item.str)
+            .join(' ');
+          textContent.push(pageText);
+        }
+        
+        text = textContent.join('\n\n');
+      } else if (file.type === 'text/plain') {
+        // Handle text files
+        text = await file.text();
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+                file.type === 'application/msword') {
+        // For Word documents, we'll need to inform the user to copy-paste the content
+        throw new Error('Word documents are not directly supported. Please copy and paste the content into the text area.');
+      } else {
+        throw new Error('Please upload a PDF or text file. For Word documents, please copy and paste the content.');
+      }
+
+      setArticleText(text.trim());
+    } catch (error) {
+      console.error('Error processing file:', error);
+      setError(error instanceof Error ? error.message : 'Error processing file');
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      await processFile(file);
+    }
+  };
+
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processFile(file);
     }
   };
 
   return (
-    <Card
-      className="w-full max-w-2xl mx-auto p-8 bg-white/90 backdrop-blur-md shadow-lg border border-white/30 rounded-xl transition-all hover:shadow-xl"
-      style={{ boxShadow: "0 8px 32px rgba(138, 63, 252, 0.2)" }}
-    >
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-            Article to Quiz Generator
-          </h2>
-          <p className="text-gray-500">
-            Upload a text or PDF file, or paste your text below
-          </p>
-        </div>
-
-        <div {...getRootProps()}>
-          <input {...getInputProps()} />
-          <FileUpload
-            onDrop={onDrop}
-            isDragActive={isDragActive}
-            fileName={fileName}
-            error={error}
-          />
-        </div>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-4 py-1 bg-white text-gray-500 rounded-full border border-gray-100 shadow-sm">
-              Or paste your text
-            </span>
-          </div>
-        </div>
-
-        <Textarea
-          placeholder="Paste your article text here..."
-          className="min-h-[200px] p-4 border-gray-200 focus:border-purple-300 focus:ring-purple-300 transition-all"
-          value={articleText}
-          onChange={(e) => {
-            setArticleText(e.target.value);
-            setError("");
-          }}
-          disabled={isLoading || processingFile}
-        />
-
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <Select value={numQuestions} onValueChange={setNumQuestions}>
-              <SelectTrigger>
-                <SelectValue placeholder="Number of questions" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">3 Questions</SelectItem>
-                <SelectItem value="5">5 Questions</SelectItem>
-                <SelectItem value="7">7 Questions</SelectItem>
-                <SelectItem value="10">10 Questions</SelectItem>
-              </SelectContent>
-            </Select>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-gray-900">Article Text</h2>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Number of Questions:</label>
+                <Select
+                  value={questionCount}
+                  onValueChange={setQuestionCount}
+                  disabled={isLoading || isProcessingFile}
+                >
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3">3</SelectItem>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="7">7</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept=".pdf,.txt,.doc,.docx"
+                  className="hidden"
+                  onChange={handleFileInput}
+                  disabled={isLoading || isProcessingFile}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isLoading || isProcessingFile}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload File
+                </Button>
+              </label>
+            </div>
           </div>
 
-          <Button
-            type="submit"
-            className="flex-[2] bg-purple-600 hover:bg-purple-700 text-white"
-            disabled={isLoading || processingFile || !articleText.trim()}
+          <div
+            className={`relative min-h-[200px] rounded-lg border-2 border-dashed transition-colors ${
+              isDragging
+                ? "border-purple-500 bg-purple-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
           >
-            {isLoading || processingFile ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isLoading ? "Generating Quiz..." : "Processing File..."}
-              </>
-            ) : (
-              "Generate Quiz"
+            <textarea
+              value={articleText}
+              onChange={(e) => {
+                setArticleText(e.target.value);
+                setError(null);
+              }}
+              placeholder="Paste your article text here or drag & drop a PDF/text file..."
+              className="w-full h-full min-h-[200px] p-4 bg-transparent resize-y rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              disabled={isLoading || isProcessingFile}
+            />
+            {isDragging && (
+              <div className="absolute inset-0 flex items-center justify-center bg-purple-50 bg-opacity-90 rounded-lg">
+                <p className="text-purple-600 font-medium">Drop your file here</p>
+              </div>
             )}
-          </Button>
+            {isProcessingFile && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Processing file...</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              disabled={!articleText.trim() || isLoading || isProcessingFile}
+              className="min-w-[150px]"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                "Generate Quiz"
+              )}
+            </Button>
+          </div>
         </div>
-      </form>
-    </Card>
+      </Card>
+    </form>
   );
 };
 

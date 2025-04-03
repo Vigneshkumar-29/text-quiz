@@ -1,132 +1,185 @@
-import React, { useState, useEffect } from "react";
-import QuestionCard from "./QuestionCard";
-import ProgressBar from "./ProgressBar";
-import QuizResults from "./QuizResults";
-import { Timer, ArrowLeft } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "./ui/button";
-
-interface Question {
-  id: string;
-  text: string;
-  options: Array<{
-    id: string;
-    text: string;
-  }>;
-  correctAnswerId: string;
-}
+import { Timer, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "./ui/use-toast";
+import QuizResults from "./QuizResults";
+import ProgressBar from "./quiz/ProgressBar";
+import { Alert, AlertDescription } from "./ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 interface QuizInterfaceProps {
-  questions?: Question[];
-  onQuizComplete?: (
-    results: Array<{ questionId: string; isCorrect: boolean }>,
-    timeSpent: number,
-  ) => void;
+  questions: Array<{
+    id: string;
+    text: string;
+    options: Array<{
+      id: string;
+      text: string;
+    }>;
+    correctAnswerId: string;
+  }>;
+  onQuizComplete: (answers: Array<{ questionId: string; isCorrect: boolean }>, timeSpent: number) => void;
 }
 
-const QuizInterface = ({
-  questions = [],
-  onQuizComplete = () => {},
-}: QuizInterfaceProps) => {
+const QuizInterface = ({ questions, onQuizComplete }: QuizInterfaceProps) => {
+  const navigate = useNavigate();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<
-    Array<{ questionId: string; isCorrect: boolean }>
-  >([]);
-  const [timeSpent, setTimeSpent] = useState(0);
-  const [isComplete, setIsComplete] = useState(false);
-  const [selectedAnswerId, setSelectedAnswerId] = useState<string>("");
+  const [selectedAnswerId, setSelectedAnswerId] = useState("");
   const [isAnswered, setIsAnswered] = useState(false);
+  const [answers, setAnswers] = useState<Array<{ questionId: string; isCorrect: boolean }>>([]);
+  const [timeSpent, setTimeSpent] = useState(0);
+  const [isQuizComplete, setIsQuizComplete] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [quizResults, setQuizResults] = useState<{
+    score: number;
+    correctAnswers: number;
+    totalQuestions: number;
+    timeSpent: number;
+  } | null>(null);
+
+  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+  const currentQuestion = questions[currentQuestionIndex];
 
   useEffect(() => {
     const timer = setInterval(() => {
-      if (!isComplete) {
+      if (!isQuizComplete) {
         setTimeSpent((prev) => prev + 1);
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isComplete]);
+  }, [isQuizComplete]);
 
-  const currentQuestion = questions[currentQuestionIndex];
-
-  const handleAnswerSelected = (answerId: string) => {
-    if (!currentQuestion || isAnswered) return;
-
+  const handleAnswer = async (answerId: string) => {
+    if (isAnswered || isQuizComplete || isLoading) return;
+    
     setSelectedAnswerId(answerId);
     setIsAnswered(true);
 
     const isCorrect = answerId === currentQuestion.correctAnswerId;
-    const newAnswers = [
-      ...answers,
-      { questionId: currentQuestion.id, isCorrect },
-    ];
+    const answer = { questionId: currentQuestion.id, isCorrect };
+    const newAnswers = [...answers, answer];
     setAnswers(newAnswers);
 
-    setTimeout(() => {
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-        setSelectedAnswerId("");
-        setIsAnswered(false);
-      } else {
-        setIsComplete(true);
-        onQuizComplete(newAnswers, timeSpent);
-      }
-    }, 1500);
+    if (currentQuestionIndex < questions.length - 1) {
+      setIsLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setCurrentQuestionIndex((prev) => prev + 1);
+      setSelectedAnswerId("");
+      setIsAnswered(false);
+      setIsLoading(false);
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      completeQuiz(newAnswers);
+    }
+  };
+
+  const completeQuiz = (finalAnswers: Array<{ questionId: string; isCorrect: boolean }>) => {
+    setIsQuizComplete(true);
+    const correctAnswers = finalAnswers.filter((a) => a.isCorrect).length;
+    const score = Math.round((correctAnswers / questions.length) * 100);
+    
+    setQuizResults({
+      score,
+      correctAnswers,
+      totalQuestions: questions.length,
+      timeSpent
+    });
+    
+    onQuizComplete(finalAnswers, timeSpent);
+  };
+
+  const handleExit = () => {
+    if (!isQuizComplete && answers.length > 0) {
+      setShowExitConfirm(true);
+    } else {
+      navigate("/quiz-generator");
+    }
+  };
+
+  const handleExitConfirm = () => {
+    if (window.confirm("Are you sure you want to exit? Your progress will be lost.")) {
+      navigate("/quiz-generator");
+    }
+    setShowExitConfirm(false);
   };
 
   if (!questions?.length || !currentQuestion) {
-    return null;
+    return (
+      <div className="text-center py-8">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No questions available. Please try generating the quiz again.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
-  if (isComplete) {
+  if (isQuizComplete && quizResults) {
     return (
       <QuizResults
-        correctAnswers={answers.filter((a) => a.isCorrect).length}
-        totalQuestions={questions.length}
-        timeSpent={timeSpent}
-        onRetry={() => onQuizComplete(answers, timeSpent)}
+        correctAnswers={quizResults.correctAnswers}
+        totalQuestions={quizResults.totalQuestions}
+        timeSpent={quizResults.timeSpent}
+        onRetry={() => {
+          navigate('/quiz-generator');
+        }}
       />
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between bg-white/50 backdrop-blur-sm rounded-xl p-4 shadow-sm">
         <Button
           variant="ghost"
-          size="sm"
-          className="text-gray-600 hover:text-gray-900"
-          onClick={() => onQuizComplete(answers, timeSpent)}
+          onClick={handleExit}
+          className="text-gray-600 hover:text-gray-900 hover:bg-gray-100/50"
+          disabled={isQuizComplete || isLoading}
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
+          <ArrowLeft className="w-4 h-4 mr-2" />
           Exit Quiz
         </Button>
-        <div className="flex items-center gap-2 text-gray-600 bg-white px-4 py-2 rounded-full shadow-sm">
-          <Timer className="w-4 h-4" />
-          <span className="font-medium">
-            {Math.floor(timeSpent / 60)}:
-            {(timeSpent % 60).toString().padStart(2, "0")}
+        <div className="flex items-center text-gray-600 bg-purple-50 px-4 py-2 rounded-lg">
+          <Timer className="w-4 h-4 mr-2 text-purple-600" />
+          <span className="font-semibold text-purple-600">
+            {Math.floor(timeSpent / 60)}m {timeSpent % 60}s
           </span>
         </div>
       </div>
 
-      <ProgressBar
-        currentQuestion={currentQuestionIndex + 1}
-        totalQuestions={questions.length}
-      />
+      <ProgressBar progress={progress} />
 
-      <div className="relative">
-        <QuestionCard
-          question={currentQuestion.text}
-          options={currentQuestion.options}
-          correctAnswerId={currentQuestion.correctAnswerId}
-          onAnswerSelected={handleAnswerSelected}
-          isAnswered={isAnswered}
-          selectedAnswerId={selectedAnswerId}
-        />
-      </div>
+      <div className="bg-white rounded-xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold mb-4">
+          Question {currentQuestionIndex + 1} of {questions.length}
+        </h2>
+        <p className="text-lg text-gray-700 mb-6">{currentQuestion.text}</p>
 
-      <div className="text-center text-sm text-gray-500 mt-4">
-        Tip: Click on an answer to proceed to the next question
+        <div className="space-y-3">
+          {currentQuestion.options.map((option) => (
+            <Button
+              key={option.id}
+              onClick={() => handleAnswer(option.id)}
+              disabled={isAnswered || isLoading}
+              variant={selectedAnswerId === option.id ? "default" : "outline"}
+              className={`w-full justify-start p-4 text-left ${
+                isAnswered
+                  ? option.id === currentQuestion.correctAnswerId
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : option.id === selectedAnswerId
+                    ? "bg-red-50 border-red-200 text-red-700"
+                    : ""
+                  : ""
+              }`}
+            >
+              {option.text}
+            </Button>
+          ))}
+        </div>
       </div>
     </div>
   );
